@@ -1,8 +1,10 @@
 using Microsoft.VisualBasic.Devices;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using WEUtils;
 namespace SinSala_BIN_2k24___by_CARP
 {
@@ -14,6 +16,7 @@ namespace SinSala_BIN_2k24___by_CARP
         public Form1()
         {
             InitializeComponent();
+            label8.Text = "Tamaño: Es la profuncidad de bits en la paleta de colores. Siendo 1000 = 16 colores \n 0001 = 256 colores";
         }
         private void btnArchivo_Click(object sender, EventArgs e)
         {
@@ -235,8 +238,8 @@ namespace SinSala_BIN_2k24___by_CARP
                         File.Delete(newBinFile);
                         File.Copy(tempBinFile, newBinFile, true);
                         int length = fileUtils.SetKonamiFileSize(newBinFile);
-                        if (length > 0) 
-                        dgvBIN.Rows[rowIndex].Cells["colTam"].Value = length;
+                        if (length > 0)
+                            dgvBIN.Rows[rowIndex].Cells["colTam"].Value = length;
 
                     }
                 }
@@ -301,8 +304,9 @@ namespace SinSala_BIN_2k24___by_CARP
             if (tipo.ToUpper() == "GRAFICO")
             {
                 // RAW
-                tsInsertarRAW.Enabled = false;
-                tsInsertarRAW.Text = "Insertar gráfico RAW";
+                tsInsertarRAWbmp.Enabled = false;
+                tsInsertarRAWbin.Enabled = false;
+                tsInsertarRAWbin.Text = "Insertar gráfico RAW";
                 // GRAFICO
                 tsInsertarGrafico.Enabled = true;
                 tsInsertarBIN.Enabled = true;
@@ -313,8 +317,9 @@ namespace SinSala_BIN_2k24___by_CARP
             if (tipo.ToUpper() == "PALETA")
             {
                 // RAW
-                tsInsertarRAW.Enabled = false;
-                tsInsertarRAW.Text = "Insertar gráfico RAW";
+                tsInsertarRAWbmp.Enabled = false;
+                tsInsertarRAWbin.Enabled = false;
+                tsInsertarRAWbin.Text = "Insertar gráfico RAW";
                 // GRAFICO
                 tsInsertarGrafico.Enabled = false;
                 tsInsertarBIN.Enabled = false;
@@ -325,9 +330,10 @@ namespace SinSala_BIN_2k24___by_CARP
             if (tipo.ToUpper() == "RAW")
             {
                 // RAW
-                tsInsertarRAW.Enabled = true;
-                tsInsertarRAW.Text = string.Empty;
-                tsInsertarRAW.Text = $"Insertar gráfico RAW  ({ancho} x {alto})";
+                tsInsertarRAWbmp.Enabled = true;
+                tsInsertarRAWbin.Enabled = true;
+                tsInsertarRAWbin.Text = string.Empty;
+                tsInsertarRAWbin.Text = $"Insertar gráfico RAW  ({ancho} x {alto})";
                 // GRAFICO
                 tsInsertarGrafico.Enabled = false;
                 tsInsertarBIN.Enabled = false;
@@ -335,13 +341,14 @@ namespace SinSala_BIN_2k24___by_CARP
                 tsInsertarPaletaBIN.Enabled = false;
                 tsInsertarPaleta.Enabled = false;
             }
-            Point point = new Point(MousePosition.X, MousePosition.Y);
-            popUp.Show(point);
+            CargarDatosImagen();
+            //Point point = new Point(MousePosition.X, MousePosition.Y);
+            //popUp.Show(point);
         }
         private void tsInsertarGrafico_Click(object sender, EventArgs e)
         {
             int rowIndex = dgvBIN.CurrentRow.Index;
-            tsInsertarRAW.Text = "Insertar gráfico RAW ";
+            tsInsertarRAWbin.Text = "Insertar gráfico RAW ";
             try
             {
                 using (OpenFileDialog ofd = new OpenFileDialog())
@@ -367,7 +374,7 @@ namespace SinSala_BIN_2k24___by_CARP
         private void tsInsertarBIN_Click(object sender, EventArgs e)
         {
             InsertarBinInFile();
-            tsInsertarRAW.Text = "Insertar gráfico RAW ";
+            tsInsertarRAWbin.Text = "Insertar gráfico RAW ";
         }
         private bool InsertarBinInFile()
         {
@@ -439,6 +446,7 @@ namespace SinSala_BIN_2k24___by_CARP
 
                 using (OpenFileDialog ofd = new OpenFileDialog())
                 {
+
                     if (ofd.ShowDialog() == DialogResult.OK)
                     {
                         long length = new FileInfo(ofd.FileName).Length;
@@ -466,25 +474,130 @@ namespace SinSala_BIN_2k24___by_CARP
             }
             return result;
         }
+        private bool InsertarRAWDesdeBMP()
+        {
+            FileUtils fileUtils = new FileUtils();
+            int rowIndex = 0;
+            int ancho = 0;
+            int alto = 0;
+            int resolucion = 0;
+            bool result = false;
+            string bloqueBIN = string.Empty;
+            byte[] bloque = null;
+            byte[] imageDecoded = null;
+            string tempFile = Path.GetTempFileName();
+            try
+            {
+                rowIndex = dgvBIN.CurrentRow.Index;
+                if (rowIndex < 0)
+                    return result;
+
+                rowIndex = dgvBIN.CurrentRow.Index;
+                bloqueBIN = Convert.ToString(dgvBIN.Rows[rowIndex].Cells["colIndice"].Value) + ".bin";
+                
+                //ancho = fileUtils.ConvertStringToHex(dgvBIN.Rows[rowIndex].Cells["colAncho"].Value.ToString(), true);
+                //alto = fileUtils.ConvertStringToHex(dgvBIN.Rows[rowIndex].Cells["colAlto"].Value.ToString(), true);
+                //resolucion = ancho * alto;
+
+                using (OpenFileDialog ofd = new OpenFileDialog())
+                {
+                    ofd.Filter = "Archivos BMP | *.bmp";
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                    //bloque = fileUtils.GetRawData(ofd.FileName,out ancho,out alto,out resolucion);
+                        bloque = fileUtils.GetRawData(ofd.FileName,out ancho,out alto,out resolucion);
+                        Simsala_BIN.CallDecodeImage(bloque, ref imageDecoded, ancho, alto, (byte)resolucion, 0);
+
+                        if (File.Exists(tempFile))
+                        {
+                            // Escibimos los bytes en el archivo temporal
+                            File.WriteAllBytes(tempFile, imageDecoded);
+                            // Copiamos el archivo temporal en el bloque
+                            File.Copy(tempFile, "Temp\\" + bloqueBIN, true);
+                            // Obtenemos el largo del archivo temporal para escribirlo en el campo
+                            long length = 0;
+                            FileInfo f = new FileInfo(tempFile);
+                            length = f.Length;
+                            // Escribimos el valor del archivo temporal en el campo
+                            dgvBIN.Rows[rowIndex].Cells["colTam"].Value = length;
+                            result = true;
+
+                        }
+                    }
+                }
+                if (result)
+                    MessageBox.Show("Archivo insertado con éxito.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+            return result;
+
+        }
+
         private void btnCrearBIN_Click(object sender, EventArgs e)
         {
             FileUtils fileUtils = new FileUtils();
             List<string> lineas = new List<string>();
-            string linea = string.Empty;
+            List<byte[]> dataLines = new List<byte[]>();
+            byte[] linea = new byte[16];
+            byte[] header = null;
+            int headerSize = 0;
+            string datoHex = string.Empty;
             try
             {
                 if (dgvBIN.Rows.Count < 0)
                     return;
-
+                // Guardamos los datos de la grilla en un array de strings
                 foreach (DataGridViewRow row in dgvBIN.Rows)
                 {
                     for (int i = 1; i < 8; i++)
                     {
-                        linea += Convert.ToString(row.Cells[i].Value);
+                        datoHex += Convert.ToString(row.Cells[i].Value);
                     }
-                    lineas.Add(linea);
-                    linea = string.Empty;
+                    lineas.Add(datoHex);
+                    datoHex = string.Empty;
                 }
+                // Convertimos la lista de string a array de bytes
+                foreach (string line in lineas)
+                {
+                    dataLines.Add(fileUtils.ConvertStringToArrayOfByte(line));
+                }
+
+                // Obtenemos el header en bytes
+                headerSize = fileUtils.HeaderSize(txtArchivo.Text);
+                using (FileStream fs = new FileStream(txtArchivo.Text, FileMode.Open, FileAccess.Read))
+                {
+                    header = new byte[headerSize];
+                    fs.Read(header, 0, headerSize);
+                    fs.Close();
+                }
+
+                // Seteamos los largos de los archivos
+                foreach (DataGridViewRow row1 in dgvBIN.Rows)
+                {
+                    string fileName = "Temp\\" + Convert.ToString(row1.Cells["colIndice"].Value) + ".bin";
+                    string tipo = Convert.ToString(row1.Cells["colTipoDato"].Value);
+
+                    if (tipo == "GRAFICO")
+                    {
+                        int newSize = fileUtils.SetKonamiFileSize(fileName);
+                        row1.Cells["colTam"].Value = newSize;
+                    }
+                }
+
+                using (SaveFileDialog sfd = new SaveFileDialog())
+                {
+                    sfd.Filter = "Archivos bin | *.bin";
+                    if (sfd.ShowDialog() == DialogResult.OK)
+                    {
+                        if (File.Exists(sfd.FileName))
+                            File.Delete(sfd.FileName);
+                        fileUtils.CrearBIN(sfd.FileName, header, dataLines);
+                    }
+                }
+
             }
             catch (Exception ex)
             {
@@ -495,7 +608,7 @@ namespace SinSala_BIN_2k24___by_CARP
         {
             FileUtils fileUtils = new FileUtils();
             string mensaje = string.Empty;
-            tsInsertarRAW.Text = "Insertar gráfico RAW ";
+            tsInsertarRAWbin.Text = "Insertar gráfico RAW ";
             try
             {
                 using (OpenFileDialog ofd = new OpenFileDialog())
@@ -526,17 +639,140 @@ namespace SinSala_BIN_2k24___by_CARP
         private void tsInsertarPaletaBIN_Click(object sender, EventArgs e)
         {
             InsertarBinInFile();
-            tsInsertarRAW.Text = "Insertar gráfico RAW ";
+            tsInsertarRAWbin.Text = "Insertar archivo BIN ";
         }
         private void tsInsertarRAW_Click(object sender, EventArgs e)
         {
             InsertarRAW();
-            tsInsertarRAW.Text = "Insertar gráfico RAW ";
+            tsInsertarRAWbin.Text = "Insertar gráfico RAW ";
 
         }
         private void tsCandelar_Click(object sender, EventArgs e)
         {
-            tsInsertarRAW.Text = "Insertar gráfico RAW ";
+            tsInsertarRAWbin.Text = "Insertar gráfico RAW ";
+        }
+        private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            string link = "https://paypal.me/maxiducoli?country.x=AR&locale.x=es_XC";
+            try
+            {
+                Process.Start(new ProcessStartInfo()
+                {
+                    FileName = link,
+                    UseShellExecute = true
+                }
+                );
+            }
+            catch (System.ComponentModel.Win32Exception noBrowser)
+            {
+                if (noBrowser.ErrorCode == -2147467259)
+                    MessageBox.Show(noBrowser.Message);
+            }
+            catch (System.Exception other)
+            {
+                MessageBox.Show(other.Message);
+            }
+        }
+        private void dgvBIN_MouseDown(object sender, MouseEventArgs e)
+        {
+            string tipo = dgvBIN.CurrentRow.Cells["colTipoDato"].Value as string;
+
+            if (tipo != null)
+                if (e.Button == MouseButtons.Right)
+                {
+                    Point point = new Point(MousePosition.X, MousePosition.Y);
+                    popUp.Show(point);
+                }
+        }
+        private void CargarDatosImagen()
+        {
+            FileUtils fileUtils = new FileUtils();
+            int rowIndex = dgvBIN.CurrentRow.Index;
+            string tipo = string.Empty;
+            string vRAMx = string.Empty;
+            string vRAMy = string.Empty;
+            string alto = string.Empty;
+            string ancho = string.Empty;
+            try
+            {
+                txtVRAMx.Text = string.Empty;
+                txtVRAMy.Text = string.Empty;
+                txtAlto.Text = string.Empty;
+                txtAncho.Text = string.Empty;
+                txtVRAMxPal.Text = string.Empty;
+                txtVRAMyPal.Text = string.Empty;
+                txtSizePal.Text = string.Empty;
+                tipo = Convert.ToString(dgvBIN.CurrentRow.Cells["colTipoDato"].Value);
+
+                if (tipo == "GRAFICO")
+                {
+                    vRAMx = Convert.ToString(dgvBIN.CurrentRow.Cells["colVRAMx"].Value);
+                    txtVRAMx.Text = vRAMx;
+                    vRAMy = Convert.ToString(dgvBIN.CurrentRow.Cells["colVRAMy"].Value);
+                    txtVRAMy.Text = vRAMy;
+                    ancho = Convert.ToString(dgvBIN.CurrentRow.Cells["colAncho"].Value);
+                    txtAncho.Text = ancho;
+                    alto = Convert.ToString(dgvBIN.CurrentRow.Cells["colAlto"].Value);
+                    txtAlto.Text = alto;
+                }
+                if (tipo == "PALETA")
+                {
+                    vRAMx = Convert.ToString(dgvBIN.CurrentRow.Cells["colVRAMx"].Value);
+                    txtVRAMxPal.Text = vRAMx;
+                    vRAMy = Convert.ToString(dgvBIN.CurrentRow.Cells["colVRAMy"].Value);
+                    txtVRAMyPal.Text = vRAMy;
+                    ancho = Convert.ToString(dgvBIN.CurrentRow.Cells["colAncho"].Value);
+                    txtSizePal.Text = ancho;
+
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+        private void tsInsertarRAWbmp_Click(object sender, EventArgs e)
+        {
+            InsertarRAWDesdeBMP();
+        }
+
+        private void btnObetener_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                dgvBIN.CurrentRow.Cells["colVRAMx"].Value = txtVRAMx.Text;
+                dgvBIN.CurrentRow.Cells["colVRAMy"].Value = txtVRAMy.Text;
+                dgvBIN.CurrentRow.Cells["colAncho"].Value = txtAncho.Text;
+                dgvBIN.CurrentRow.Cells["colAlto"].Value = txtAlto.Text;
+            }
+            catch (Exception ex)
+            {
+
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void btnSetear_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                dgvBIN.CurrentRow.Cells["colVRAMx"].Value = txtVRAMxPal.Text;
+                dgvBIN.CurrentRow.Cells["colVRAMy"].Value = txtVRAMyPal.Text;
+                dgvBIN.CurrentRow.Cells["colAncho"].Value = txtSizePal.Text;
+                if (txtSizePal.Text == "0001")
+                {
+                    dgvBIN.CurrentRow.Cells["colTam"].Value = 256;
+                }
+                else
+                {
+                    dgvBIN.CurrentRow.Cells["colTam"].Value = 16;
+                }
+            }
+            catch (Exception ex)
+            {
+
+                MessageBox.Show(ex.Message);
+            }
         }
     }
 }

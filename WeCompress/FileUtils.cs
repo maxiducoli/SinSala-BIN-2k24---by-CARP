@@ -1,7 +1,4 @@
-﻿using System;
-using System.Drawing.Imaging;
-using System.Security.Cryptography;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+﻿using System.Drawing.Imaging;
 
 namespace WEUtils
 {
@@ -27,12 +24,56 @@ namespace WEUtils
             puntero_11 = 2148597760, /*80110000*/
             puntero_12 = 2148663296  /*80120000*/
         }
+        // Seteamos el puntero del array de índices
+        public int SetearPuntero(byte tipoPuntero, byte[] data)
+        {
+            int result = 0;
+            int offsetTemporal = 0;
+            try
+            {
+                switch (tipoPuntero)
+                {
+                    case 0x0C:
+                        offsetTemporal = Puntero(data) + (int)Punteros.p_0C80;
+                        break;
+                    case 0x0D:
+                        offsetTemporal = Puntero(data) - (int)Punteros.p_0D80;
+                        break;
+                    case 0x0E:
+                        offsetTemporal = Puntero(data) - (int)Punteros.p_0E80;
+                        break;
+                    case 0x0F:
+                        offsetTemporal = Puntero(data);
+                        break;
+                    case 0x10:
+                        offsetTemporal = Puntero(data) - (int)Punteros.P_1080;
+                        break;
+                    case 0x11:
+                        offsetTemporal = Puntero(data) - +(int)Punteros.P_1180;
+                        break;
+                    case 0x12:
+                        offsetTemporal = Puntero(data) - (int)Punteros.P_1280;
+                        break;
+                    default:
+                        offsetTemporal = 0;
+                        break;
+                }
+                result = offsetTemporal;
+            }
+            catch (Exception ex)
+            {
+
+                throw new Exception(ex.Message);
+            }
+
+            return result;
+        }
         // Obtenemos el tamaño del header del BIN
         public int HeaderSize(string filePath)
         {
             int result = 0;
             int offsetIndice = 0;
-            int offsetDatos = 0;
+            //int offsetDatos = 0;
             byte[] datos = new byte[4];
             byte[] offset = new byte[16];
             try
@@ -242,7 +283,7 @@ namespace WEUtils
                         result.Add(finalLinea);
                     }
                 }
-                result = result;
+                //result = result;
             }
             catch (Exception ex)
             {
@@ -461,21 +502,6 @@ namespace WEUtils
             }
             return result;
         }
-        public bool CrearBIN(string outputFilePath, byte[] header, List<byte[]> data)
-        {
-            bool result = false;
-
-            try
-            {
-
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-
-            return result;
-        }
         public List<byte[]> ConvertStringToByteArray(List<string> str)
         {
             List<byte[]> result = new List<byte[]>();
@@ -556,6 +582,29 @@ namespace WEUtils
             }
             return result;
         }
+        public byte[] ConvertColorsToTIMBytes(Color[] colors)
+        {
+            // Crear un array de bytes para almacenar los datos de la paleta TIM
+            byte[] timPaletteData = new byte[colors.Length * 2];
+
+            // Convertir cada color a formato de 16 bits TIM y almacenarlo en el array de bytes
+            for (int i = 0; i < colors.Length; i++)
+            {
+                // Extraer los componentes R, G, B del color
+                int r = colors[i].R >> 3;  // Reducir de 8 bits a 5 bits
+                int g = colors[i].G >> 3;  // Reducir de 8 bits a 5 bits
+                int b = colors[i].B >> 3;  // Reducir de 8 bits a 5 bits
+
+                // Combinar los componentes en un ushort (16 bits)
+                ushort colorData = (ushort)((r & 0x1F) | ((g & 0x1F) << 5) | ((b & 0x1F) << 10));
+
+                // Convertir el ushort a dos bytes y almacenarlos en el array de bytes
+                timPaletteData[i * 2] = (byte)(colorData & 0xFF);       // Byte menos significativo
+                timPaletteData[i * 2 + 1] = (byte)((colorData >> 8) & 0xFF);  // Byte más significativo
+            }
+
+            return timPaletteData;
+        }
         public bool GetColorPaletteFromBitmap(string bmpFile, out byte[] paletaColores)
         {
             bool result = false;
@@ -568,16 +617,18 @@ namespace WEUtils
             Color[] palette = new Color[clutColors];
             palette = PaletaToColor(bmpFile);
 
-            paletaColores = new byte[clutColors * 2];
-            for (int i = 0; i < clutColors; i++)
-            {
-                Color color = palette[i];
-                int timColor = (color.R >> 3) | ((color.G >> 3) << 5) | ((color.B >> 3) << 10);
-                paletaColores[i * 2] = (byte)timColor;
-                paletaColores[i * 2 + 1] = (byte)(timColor >> 8);
-            }
+            paletaColores = ConvertColorsToTIMBytes(palette);
+            //paletaColores = new byte[clutColors * 2];
+            //for (int i = 0; i < clutColors; i++)
+            //{
+            //    Color color = palette[i];
+            //    int timColor = (color.R >> 3) | ((color.G >> 3) << 5) | ((color.B >> 3) << 10);
+            //    paletaColores[i * 2] = (byte)timColor;
+            //    paletaColores[i * 2 + 1] = (byte)(timColor >> 8);
+            //}
             if (paletaColores != null)
             {
+                //Array.Reverse(paletaColores);
                 result = true;
             }
             return result;
@@ -598,48 +649,244 @@ namespace WEUtils
             {
                 long length = fs.Length;
 
+                // Seteamos el largo correcto de los BIN
+                //Largo + 00
                 largoArchivo = ((double)length) / 16;
                 resto = largoArchivo - Math.Floor(largoArchivo);
-                if (resto == 0)
+                if ((resto == 0) || (resto == 0.25) ||
+                    (resto == 0.50) || (resto == 0.75))
                 { 
-                    return (int)length;
+                    result = (int)fs.Length;
+                fs.Close();
+                return result;
                 }
 
 
-                // Seteamos el largo correcto de los BIN
-                // Largo + 00
                 largoArchivo = ((double)length + 1) / 16;
                 resto = largoArchivo - Math.Floor(largoArchivo);
                 if ((resto == 0) || (resto == 0.25) ||
                     (resto == 0.50) || (resto == 0.75))
                     bytesToAdd = new byte[1];
-
+                    result = (int)fs.Length + 1;
 
                 //Largo + 0000
                 largoArchivo = ((double)length + 2) / 16;
                 resto = largoArchivo - Math.Floor(largoArchivo);
                 if ((resto == 0) || (resto == 0.25) ||
                     (resto == 0.50) || (resto == 0.75))
+                { 
                     bytesToAdd = new byte[2];
+                result = (int)fs.Length + 2;
+                }
 
-                //Largo + 000000
-                largoArchivo = ((double)length + 3) / 16;
+                //Largo + 0000
+                largoArchivo = ((double)length + 3 ) / 16;
                 resto = largoArchivo - Math.Floor(largoArchivo);
                 if ((resto == 0) || (resto == 0.25) ||
                     (resto == 0.50) || (resto == 0.75))
+                {
                     bytesToAdd = new byte[3];
+                    result = (int)fs.Length + 3;
+                }
 
-                //Largo + 00000000
-                largoArchivo = ((double)length + 4) / 16;
-                resto = largoArchivo - Math.Floor(largoArchivo);
-                if ((resto == 0) || (resto == 0.25) ||
-                    (resto == 0.50) || (resto == 0.75))
-                    bytesToAdd = new byte[4];
-                result = (int)fs.Length + bytesToAdd.Length;
 
                 fs.Write(bytesToAdd, 0, bytesToAdd.Length);
             }
             return result;
         }
+        public bool CrearBIN(string outputFilePath, byte[] header, List<byte[]> data)
+        {
+            bool primeraVuelta = true;
+            bool primerPuntero = true;
+            const string path = "Temp\\";
+            bool result = false;
+            int vueltas = 0;
+            int indice = 0;
+            //int indiceLineas = 0;
+            uint acumuladorOffsets = 0;
+            string nombreBloque = string.Empty;
+            // El índice del puntero: 0C-0D-0E-0F-10-11-12
+            byte indicePunteroHeader = 0;
+            byte indicePunteroData = 0;
+            // El offset del puntero
+            byte[] puntero = new byte[4];
+            byte[] punteroHeader = new byte[4];
+            byte[] headerTemp = new byte[header.Length];
+            List<byte[]> datosHeader = new List<byte[]>();
+            List<byte[]> datosLinea = new List<byte[]>();
+            int p = 0;
+            try
+            {
+                // Creamos el archivo BIN
+                using (FileStream fs = new FileStream(outputFilePath, FileMode.Append, FileAccess.Write))
+                {
+                    // Escribimos el header
+                    fs.Write(headerTemp);
+                    // La cantidad de vueltas que da el loop a partir del largo del header.
+                    vueltas = header.Length / 4;
+                    // Los datos comienzan desde este offset
+                    acumuladorOffsets = (uint)header.Length;
+                    for (int i = 0; i < vueltas; i++)
+                    {
+                        // Guardamos los datos del header en el listado de offsets del header
+                        punteroHeader[0] = header[i * 4];
+                        punteroHeader[1] = header[(i * 4) + 1];
+                        punteroHeader[2] = header[(i * 4) + 2];
+                        punteroHeader[3] = header[(i * 4) + 3];
+                        // Si PunteroHeader 00000000 salimos de la vuelta
+                        if (BitConverter.ToUInt32(punteroHeader, 0) == 0x00)
+                            continue;
+                        // El índice del puntero del header
+                        indicePunteroHeader = punteroHeader[2];
+                        // Mientras la linea no comience con 0xFF
+                        while (data[indice][0] != 0xFF)
+                        {
+                            // El índice del puntero 0C-0D-0E-0F-10-11-12
+                            indicePunteroData = data[i][14];
+
+                            // Nombre de los archivos de los bloques
+                            if ((indice + 1).ToString().Length == 1)
+                            {
+                                nombreBloque = "000" + (indice + 1).ToString();
+                            }
+                            if ((indice + 1).ToString().Length == 2)
+                            {
+                                nombreBloque = "00" + (indice + 1).ToString();
+                            }
+                            if ((indice + 1).ToString().Length == 3)
+                            {
+                                nombreBloque = "0" + (indice + 1).ToString();
+                            }
+                            // Obtenemos el tamaño del bloque
+                            string bloquePath = path + nombreBloque + ".bin";
+                            FileInfo fi = new FileInfo(bloquePath);
+                            long fileSize = fi.Length;
+                            // Si es la primer vuelta, obtenemos el offset del primer archivo luego del header
+                            byte[] b = new byte[4];
+                            if (primeraVuelta)
+                            {
+                                // Guardamos los datos del puntero
+                                puntero[0] = data[indice][12];
+                                puntero[1] = data[indice][13];
+                                puntero[2] = data[indice][14];
+                                puntero[3] = data[indice][15];
+                                p = SetearPuntero(indicePunteroData, puntero);
+                                // Pasamos el valor del puntero a un array de bytes
+                                b = BitConverter.GetBytes(p);
+                                b[2] = (byte)(b[2] + indicePunteroData);
+                                b[3] = 0x80;
+                                primeraVuelta = false;
+                                acumuladorOffsets = BitConverter.ToUInt32(b);
+                            }
+                            else
+                            {
+                                //int newOffset = p + acumuladorOffsets;
+                                b = BitConverter.GetBytes(acumuladorOffsets);
+                            }
+                            // Escribimos el nuevo puntero en el listado de índices
+                            data[indice][12] = b[0];
+                            data[indice][13] = b[1];
+                            data[indice][14] = b[2];
+                            data[indice][15] = b[3];
+                            // Leemos todo el bloque
+                            byte[] bloque = File.ReadAllBytes(bloquePath);
+                            fs.Write(bloque);
+                            datosLinea.Add(data[indice]);
+                            // Sumamos el tamaño del archivo para la nueva vuelta
+                            acumuladorOffsets += (uint)fileSize;
+                            indice++;
+                        }
+                        // Guardamos el valor del offset del índice
+                        byte[] bc = BitConverter.GetBytes(acumuladorOffsets);
+                        int ph = SetearPuntero(indicePunteroHeader, bc);
+                        // Actualizamos los datos del header
+                        byte[] y = BitConverter.GetBytes(ph);
+                        header[i * 4] = y[0];
+                        header[(i * 4) + 1] = y[1];
+                        header[(i * 4) + 2] = (byte)(y[2] + indicePunteroHeader);
+                        header[(i * 4) + 3] = 0x80;
+                        // Guardamos el nuevo header en el listado
+                        datosHeader.Add(header);
+                        // Agregamos los datos para después escribir en secuencia
+                        datosLinea.Add(data[indice]);
+                        foreach (byte[] bytes in datosLinea)
+                        {
+                            fs.Write(bytes);
+                            acumuladorOffsets += (uint)bytes.Length;
+                        }
+                        datosLinea.Clear();
+                        indice++;
+                    }
+                }
+                using (FileStream f = new FileStream(outputFilePath,FileMode.Open,FileAccess.Write))
+                {
+                    foreach (byte[] item in datosHeader)
+                    {
+                        f.Position = 0;
+                        f.Write(item);
+                    }
+                    f.Close();
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+
+            return result;
+        }
+        public int CovertirCadenaHexa(string cadenaHexa)
+        {
+            int result = 0;
+            try
+            {
+                string s = string.Empty;
+                foreach (Char chr in cadenaHexa)
+                {
+                    s = chr.ToString() + s;
+                }
+                result = Convert.ToInt32(s,16);
+            }
+            catch (Exception ex)
+            {
+
+                throw new Exception(ex.Message);
+            }
+            return result;
+        }
+        public byte[] GetRawData(string filePath, out int width, out int height, out int bitsPerPixel)
+        {
+            using (BinaryReader reader = new BinaryReader(File.Open(filePath, FileMode.Open)))
+            {
+                // Leer cabecera BMP (14 bytes)
+                reader.BaseStream.Seek(18, SeekOrigin.Begin);
+                width = reader.ReadInt32();
+                height = reader.ReadInt32();
+
+                reader.BaseStream.Seek(2, SeekOrigin.Current);
+                bitsPerPixel = reader.ReadInt16();
+
+                // Leer cabecera DIB (40 bytes)
+                int headerSize = reader.ReadInt32();
+                reader.BaseStream.Seek(14 + headerSize, SeekOrigin.Begin);
+
+                // Leer tabla de colores (si es necesario)
+                int colorTableSize = 0;
+                if (bitsPerPixel <= 8)
+                {
+                    colorTableSize = (int)Math.Pow(2, bitsPerPixel) * 4;
+                    reader.BaseStream.Seek(colorTableSize, SeekOrigin.Current);
+                }
+
+                // Leer datos RAW de píxeles
+                int dataSize = (int)(reader.BaseStream.Length - reader.BaseStream.Position);
+                byte[] rawData = reader.ReadBytes(dataSize);
+
+                return rawData;
+            }
+        }
+
     }
+
 }
